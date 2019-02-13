@@ -42,9 +42,9 @@ fn main() {
 
     // Actual build
     let mut base_config = cc::Build::new();
-    base_config.include("depend/secp256k1/")
-               .include("depend/secp256k1/include")
-               .include("depend/secp256k1/src")
+    base_config.include("depend/secp256k1-zkp/")
+               .include("depend/secp256k1-zkp/include")
+               .include("depend/secp256k1-zkp/src")
                .debug(true)
                .flag_if_supported("-Wno-unused-function") // some ecmult stuff is defined but not used upstream
                .define("SECP256K1_BUILD", Some("1"))
@@ -54,7 +54,8 @@ fn main() {
                .define("USE_SCALAR_INV_BUILTIN", Some("1"))
                .define("USE_ENDOMORPHISM", Some("1"))
                .define("ENABLE_MODULE_ECDH", Some("1"))
-               .define("ENABLE_MODULE_RECOVERY", Some("1"));
+               .define("ENABLE_MODULE_RECOVERY", Some("1"))
+               .define("ENABLE_MODULE_SCHNORRSIG", Some("1"));
 
     if let Ok(target_endian) = env::var("CARGO_CFG_TARGET_ENDIAN") {
         if target_endian == "big" {
@@ -72,8 +73,8 @@ fn main() {
     }
 
     // secp256k1
-    base_config.file("depend/secp256k1/contrib/lax_der_parsing.c")
-               .file("depend/secp256k1/src/secp256k1.c")
+    base_config.file("depend/secp256k1-zkp/contrib/lax_der_parsing.c")
+               .file("depend/secp256k1-zkp/src/secp256k1.c")
                .compile("libsecp256k1.a");
 }
 
