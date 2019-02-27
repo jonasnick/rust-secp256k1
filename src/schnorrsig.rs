@@ -107,17 +107,27 @@ impl From<ffi::SchnorrSignature> for SchnorrSignature {
     }
 }
 
-impl<C: Signing> Secp256k1<C> {
+pub trait SchnorrsigSign {
+    /// Converts the object into a 32-byte array
+    fn schnorrsig_sign(&self, msg: &Message, sk: &key::SecretKey)
+                -> SchnorrSignature;
+}
+pub trait SchnorrsigVerify {
+    fn schnorrsig_verify(&self, msg: &Message, sig: &SchnorrSignature, pk: &key::PublicKey) -> Result<(), Error>;
+    fn schnorrsig_verify_batch(&self, msgs: &[Message], sigs: &[SchnorrSignature], pks: &[key::PublicKey]) -> Result<(), Error>;
+}
+
+impl<C: Signing> SchnorrsigSign for Secp256k1<C> {
     /// Constructs a signature for `msg` using the secret key `sk` and BIP-schnorr nonce
     /// Requires a signing-capable context.
-    pub fn schnorrsig_sign(&self, msg: &Message, sk: &key::SecretKey)
+    fn schnorrsig_sign(&self, msg: &Message, sk: &key::SecretKey)
                 -> SchnorrSignature {
         let mut ret = unsafe { ffi::SchnorrSignature::blank() };
         unsafe {
             // We can assume the return value because it's not possible to construct
             // an invalid signature from a valid `Message` and `SecretKey`
             assert_eq!(ffi::secp256k1_schnorrsig_sign(
-                self.ctx,
+                self.ctx(),
                 &mut ret,
                 ptr::null_mut(),
                 msg.as_ptr(),
@@ -129,13 +139,13 @@ impl<C: Signing> Secp256k1<C> {
     }
 }
 
-impl<C: Verification> Secp256k1<C> {
+impl<C: Verification> SchnorrsigVerify for Secp256k1<C> {
     /// Checks that `sig` is a valid Schnorr signature for `msg` using the public key
     /// `pubkey`. Returns `Ok(true)` on success.Requires a verify-capable context.
     #[inline]
-    pub fn schnorrsig_verify(&self, msg: &Message, sig: &SchnorrSignature, pk: &key::PublicKey) -> Result<(), Error> {
+    fn schnorrsig_verify(&self, msg: &Message, sig: &SchnorrSignature, pk: &key::PublicKey) -> Result<(), Error> {
         unsafe {
-            if ffi::secp256k1_schnorrsig_verify(self.ctx, sig.as_ptr(), msg.as_ptr(), pk.as_ptr()) == 0 {
+            if ffi::secp256k1_schnorrsig_verify(self.ctx(), sig.as_ptr(), msg.as_ptr(), pk.as_ptr()) == 0 {
                 Err(Error::IncorrectSignature)
             } else {
                 Ok(())
@@ -143,7 +153,7 @@ impl<C: Verification> Secp256k1<C> {
         }
     }
 
-    pub fn schnorrsig_verify_batch(&self, msgs: &[Message], sigs: &[SchnorrSignature], pks: &[key::PublicKey]) -> Result<(), Error> {
+    fn schnorrsig_verify_batch(&self, msgs: &[Message], sigs: &[SchnorrSignature], pks: &[key::PublicKey]) -> Result<(), Error> {
         if msgs.len() != sigs.len() || msgs.len() != pks.len() {
             return Err(Error::ArgumentLength);
         }
@@ -165,8 +175,8 @@ impl<C: Verification> Secp256k1<C> {
         }
         unsafe {
             /* TODO: use proper scratch space api */
-            let scratch_space = ffi::secp256k1_scratch_space_create(self.ctx, 1_000_000);
-            let result = ffi::secp256k1_schnorrsig_verify_batch(self.ctx, scratch_space,
+            let scratch_space = ffi::secp256k1_scratch_space_create(self.ctx(), 1_000_000);
+            let result = ffi::secp256k1_schnorrsig_verify_batch(self.ctx(), scratch_space,
                                                                 sigptrs.as_ptr(),
                                                                 msgptrs.as_ptr(),
                                                                 pkptrs.as_ptr(),
@@ -183,9 +193,9 @@ impl<C: Verification> Secp256k1<C> {
 
 #[cfg(test)]
 mod tests {
-    use rand::{Rng, thread_rng};
-    use secp256k1::{Secp256k1, Message};
-    use super::{SchnorrSignature, Error};
+    use rand::{Rng, RngCore, thread_rng};
+    use secp256k1::{Secp256k1, Message, Signing, Verification, All};
+    use super::{SchnorrSignature, Error, SchnorrsigVerify, SchnorrsigSign};
 
     #[test]
     fn serialization_roundtrip() {
