@@ -22,5 +22,11 @@ path = "src/lib.rs"
 [dev-dependencies]
 rand = "0.6"
 
-[dependencies]
-secp256k1 = "0.12"
+[dependencies.secp256k1]
+version = "0.12"
+path = "../../rust-secp256k1/"
+
+[dev-dependencies.secp256k1]
+version = "0.12"
+path = "../../rust-secp256k1/"
+features = ["rand"]
